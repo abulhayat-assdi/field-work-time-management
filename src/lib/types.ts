@@ -1,14 +1,14 @@
 export interface LogEntry {
   id: string;
+  created_at: string;
   date: string;
   student_name: string;
-  student_id: string;
+  roll_number: string;
   out_time: string;
   in_time: string;
-  actual_work_time: string;
-  student_submitted: boolean;
+  work_duration_value: number;
+  work_duration_unit: 'Hours' | 'Minutes';
   teacher_approved: boolean;
-  created_at: string;
 }
 
 export interface DashboardStats {

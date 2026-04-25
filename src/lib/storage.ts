@@ -14,11 +14,11 @@ export const getLogs = async (): Promise<LogEntry[]> => {
   return data || [];
 };
 
-export const getStudentLogs = async (studentId: string): Promise<LogEntry[]> => {
+export const getStudentLogs = async (rollNumber: string): Promise<LogEntry[]> => {
   const { data, error } = await supabase
     .from("fieldwork_logs")
     .select("*")
-    .ilike("student_id", `%${studentId}%`)
+    .eq("roll_number", rollNumber)
     .order("date", { ascending: false });
 
   if (error) {
