@@ -1,5 +1,33 @@
 import { supabase } from "./supabase";
-import { LogEntry } from "./types";
+import { LogEntry, Batch } from "./types";
+
+export const getBatches = async (): Promise<Batch[]> => {
+  const { data, error } = await supabase.from("batches").select("*").order("name", { ascending: true });
+  if (error) {
+    console.error("Error fetching batches:", error);
+    return [];
+  }
+  return data || [];
+};
+
+export const addBatch = async (name: string) => {
+  const { data, error } = await supabase.from("batches").insert([{ name }]).select();
+  if (error) throw error;
+  return data?.[0];
+};
+
+export const getExportLogs = async (startDate: string, endDate: string, batch: string): Promise<LogEntry[]> => {
+  let query = supabase.from("fieldwork_logs").select("*").gte("date", startDate).lte("date", endDate);
+  if (batch && batch !== "all") {
+    query = query.eq("batch", batch);
+  }
+  const { data, error } = await query.order("date", { ascending: true });
+  if (error) {
+    console.error("Error fetching export logs:", error);
+    return [];
+  }
+  return data || [];
+};
 
 export const getLogs = async (): Promise<LogEntry[]> => {
   const { data, error } = await supabase
@@ -28,12 +56,18 @@ export const getStudentLogs = async (rollNumber: string): Promise<LogEntry[]> =>
   return data || [];
 };
 
-export const getDailyLogs = async (date: string): Promise<LogEntry[]> => {
-  const { data, error } = await supabase
-    .from("fieldwork_logs")
-    .select("*")
-    .eq("date", date)
-    .order("created_at", { ascending: true });
+export const getDailyLogs = async (startDate?: string, endDate?: string, batch?: string): Promise<LogEntry[]> => {
+  let query = supabase.from("fieldwork_logs").select("*");
+  if (startDate) {
+    query = query.gte("date", startDate);
+  }
+  if (endDate) {
+    query = query.lte("date", endDate);
+  }
+  if (batch && batch !== "all") {
+    query = query.eq("batch", batch);
+  }
+  const { data, error } = await query.order("date", { ascending: false }).order("created_at", { ascending: false });
 
   if (error) {
     console.error("Error fetching daily logs:", error);

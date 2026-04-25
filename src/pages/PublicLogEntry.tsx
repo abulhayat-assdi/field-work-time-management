@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,27 +6,38 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { addLog } from "@/lib/storage";
+import { addLog, getBatches } from "@/lib/storage";
 import { formatTo12Hour } from "@/lib/time-utils";
 import { motion } from "motion/react";
 import { ClipboardList, Send, MapPin } from "lucide-react";
 import { Link } from "react-router-dom";
+import { Batch } from "@/lib/types";
 
 export default function PublicLogEntry() {
   const [loading, setLoading] = useState(false);
+  const [batches, setBatches] = useState<Batch[]>([]);
   const [formData, setFormData] = useState({
     date: format(new Date(), "yyyy-MM-dd"),
     student_name: "",
     roll_number: "",
+    batch: "",
     out_time: "09:00",
     in_time: "17:00",
     work_duration_value: 0,
     work_duration_unit: "Hours" as "Hours" | "Minutes",
   });
 
+  useEffect(() => {
+    const fetchBatches = async () => {
+      const data = await getBatches();
+      setBatches(data);
+    };
+    fetchBatches();
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.student_name || !formData.roll_number || formData.work_duration_value <= 0) {
+    if (!formData.student_name || !formData.roll_number || !formData.batch || formData.work_duration_value <= 0) {
       toast.error("Please fill in all required fields accurately.");
       return;
     }
@@ -45,6 +56,7 @@ export default function PublicLogEntry() {
         ...formData,
         student_name: "",
         roll_number: "",
+        batch: "",
         work_duration_value: 0
       });
     } catch (err: any) {
@@ -106,16 +118,39 @@ export default function PublicLogEntry() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="student_name">Full Name</Label>
-                  <Input
-                    id="student_name"
-                    placeholder="Enter your registered name"
-                    value={formData.student_name}
-                    onChange={(e) => setFormData({ ...formData, student_name: e.target.value })}
-                    className="border-brand-border h-11"
-                    required
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="student_name">Full Name</Label>
+                    <Input
+                      id="student_name"
+                      placeholder="Enter your registered name"
+                      value={formData.student_name}
+                      onChange={(e) => setFormData({ ...formData, student_name: e.target.value })}
+                      className="border-brand-border h-11"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Batch</Label>
+                    <Select
+                      value={formData.batch}
+                      onValueChange={(val: string) => setFormData({ ...formData, batch: val })}
+                      required
+                    >
+                      <SelectTrigger className="h-11 border-brand-border">
+                        <SelectValue placeholder="Select your batch" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {batches.length === 0 ? (
+                          <SelectItem value="none" disabled>No batches available</SelectItem>
+                        ) : (
+                          batches.map((batch) => (
+                            <SelectItem key={batch.id} value={batch.name}>{batch.name}</SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
