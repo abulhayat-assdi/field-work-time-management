@@ -10,12 +10,13 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { getDailyLogs, getStudentLogs, updateLog, getBatches, addBatch, getExportLogs } from "@/lib/storage";
+import { getDailyLogs, getStudentLogs, updateLog, deleteLog, getBatches, addBatch, getExportLogs } from "@/lib/storage";
 import { calculateTimeDifference, displayAsAMPM } from "@/lib/time-utils";
 import { LogEntry, Batch } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { motion } from "motion/react";
-import { Calendar as CalendarIcon, Download, Search, CheckCircle2, FileText, UserSquare2, Plus } from "lucide-react";
+import { Calendar as CalendarIcon, Download, Search, CheckCircle2, FileText, UserSquare2, Plus, CheckCheck, Edit3, Trash2 } from "lucide-react";
+import { Logo } from "@/components/Logo";
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("daily");
@@ -34,6 +35,9 @@ export default function AdminDashboard() {
   const [exportStartDate, setExportStartDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [exportEndDate, setExportEndDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [exportBatch, setExportBatch] = useState("all");
+
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editLogData, setEditLogData] = useState<LogEntry | null>(null);
 
   const fetchLogs = async () => {
     setLoading(true);
@@ -71,6 +75,48 @@ export default function AdminDashboard() {
       fetchLogs();
     } catch (err) {
       toast.error("Operation failed.");
+    }
+  };
+
+  const handleBulkApprove = async () => {
+    const unapprovedLogs = logs.filter(log => !log.teacher_approved);
+    if (unapprovedLogs.length === 0) {
+      toast.info("All logs are already approved!");
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      await Promise.all(unapprovedLogs.map(log => updateLog(log.id, { teacher_approved: true })));
+      toast.success(`${unapprovedLogs.length} logs approved successfully!`);
+      fetchLogs();
+    } catch (err) {
+      toast.error("Failed to bulk approve.");
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteLog = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this record? This action cannot be undone.")) return;
+    try {
+      await deleteLog(id);
+      toast.success("Log deleted successfully!");
+      fetchLogs();
+    } catch (err) {
+      toast.error("Failed to delete log.");
+    }
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editLogData) return;
+    try {
+      await updateLog(editLogData.id, editLogData);
+      toast.success("Log updated successfully!");
+      setIsEditDialogOpen(false);
+      fetchLogs();
+    } catch (err) {
+      toast.error("Failed to update log.");
     }
   };
 
@@ -133,17 +179,22 @@ export default function AdminDashboard() {
         className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white/60 backdrop-blur-md p-6 rounded-3xl border border-white shadow-sm"
       >
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 bg-gradient-to-tr from-brand-blue to-indigo-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
-            <UserSquare2 size={28} strokeWidth={1.5} />
-          </div>
-          <div>
+          <Logo />
+          <div className="ml-2">
             <h1 className="text-3xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-slate-800 to-slate-500 tracking-tight">
               Admin Console
             </h1>
-            <p className="text-brand-slate-sub font-medium mt-1">Academic oversight and log approval system.</p>
+            <p className="text-brand-slate-sub font-medium mt-1">The Art of Sales & Marketing</p>
           </div>
         </div>
         <div className="flex flex-wrap gap-3">
+          <Button 
+            onClick={handleBulkApprove} 
+            className="h-12 px-6 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 font-bold gap-2 shadow-sm transition-all border border-emerald-100"
+          >
+            <CheckCheck size={16} />
+            Approve All
+          </Button>
           <Button 
             onClick={() => setIsBatchDialogOpen(true)} 
             className="h-12 px-6 rounded-xl bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-bold gap-2 shadow-sm transition-all"
@@ -248,7 +299,7 @@ export default function AdminDashboard() {
                    {loading ? "Syncing..." : `${logs.length} Submissions`}
                  </Badge>
                </div>
-               {renderTable(logs, loading, handleApprove)}
+               {renderTable(logs, loading, handleApprove, (log) => { setEditLogData(log); setIsEditDialogOpen(true); }, handleDeleteLog)}
             </TabsContent>
 
             <TabsContent value="individual" className="m-0 focus-visible:ring-0">
@@ -267,7 +318,7 @@ export default function AdminDashboard() {
                    </Badge>
                  )}
                </div>
-               {renderTable(logs, loading, handleApprove)}
+               {renderTable(logs, loading, handleApprove, (log) => { setEditLogData(log); setIsEditDialogOpen(true); }, handleDeleteLog)}
             </TabsContent>
           </Card>
         </motion.div>
@@ -330,11 +381,69 @@ export default function AdminDashboard() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-2xl rounded-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">Edit Log Entry</DialogTitle>
+            <DialogDescription>Modify the submitted details of the fieldwork log.</DialogDescription>
+          </DialogHeader>
+          {editLogData && (
+            <form onSubmit={handleEditSubmit} className="space-y-4 mt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Date</Label>
+                  <Input type="date" value={editLogData.date} onChange={(e) => setEditLogData({ ...editLogData, date: e.target.value })} required className="h-11 rounded-xl" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Batch</Label>
+                  <Select value={editLogData.batch} onValueChange={(val) => setEditLogData({ ...editLogData, batch: val })}>
+                    <SelectTrigger className="h-11 rounded-xl">
+                      <SelectValue placeholder="Select Batch" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {batches.map(b => (
+                        <SelectItem key={b.id} value={b.name}>{b.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Student Name</Label>
+                  <Input value={editLogData.student_name} onChange={(e) => setEditLogData({ ...editLogData, student_name: e.target.value })} required className="h-11 rounded-xl" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Roll Number</Label>
+                  <Input value={editLogData.roll_number} onChange={(e) => setEditLogData({ ...editLogData, roll_number: e.target.value })} required className="h-11 rounded-xl" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Out Time</Label>
+                  <Input type="time" value={editLogData.out_time} onChange={(e) => setEditLogData({ ...editLogData, out_time: e.target.value })} required className="h-11 rounded-xl" />
+                </div>
+                <div className="space-y-2">
+                  <Label>In Time</Label>
+                  <Input type="time" value={editLogData.in_time} onChange={(e) => setEditLogData({ ...editLogData, in_time: e.target.value })} required className="h-11 rounded-xl" />
+                </div>
+              </div>
+              <DialogFooter className="mt-6">
+                <Button type="button" variant="ghost" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
+                <Button type="submit" className="bg-brand-blue hover:bg-blue-700 rounded-xl px-6">Save Changes</Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function renderTable(logs: LogEntry[], loading: boolean, onApprove: (id: string, cur: boolean) => void) {
+function renderTable(
+  logs: LogEntry[], 
+  loading: boolean, 
+  onApprove: (id: string, cur: boolean) => void,
+  onEdit: (log: LogEntry) => void,
+  onDelete: (id: string) => void
+) {
   return (
     <div className="overflow-x-auto">
       <Table className="data-table">
@@ -347,12 +456,13 @@ function renderTable(logs: LogEntry[], loading: boolean, onApprove: (id: string,
             <TableHead className="text-[10px] uppercase font-bold text-slate-400 px-6 py-5 tracking-wider">Work Duration</TableHead>
             <TableHead className="text-[10px] uppercase font-bold text-indigo-400 px-6 py-5 tracking-wider">Total Outing (Auto)</TableHead>
             <TableHead className="text-[10px] uppercase font-bold text-slate-400 px-8 py-5 text-right tracking-wider">Approval Status</TableHead>
+            <TableHead className="text-[10px] uppercase font-bold text-slate-400 px-6 py-5 text-right tracking-wider">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {loading ? (
             <TableRow>
-              <TableCell colSpan={7} className="h-[400px] text-center">
+              <TableCell colSpan={8} className="h-[400px] text-center">
                  <div className="flex flex-col items-center justify-center gap-4 h-full">
                    <div className="relative w-16 h-16">
                      <div className="absolute inset-0 rounded-full border-4 border-blue-100"></div>
@@ -365,7 +475,7 @@ function renderTable(logs: LogEntry[], loading: boolean, onApprove: (id: string,
             </TableRow>
           ) : logs.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={7} className="h-[400px] text-center">
+              <TableCell colSpan={8} className="h-[400px] text-center">
                 <motion.div 
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -433,6 +543,24 @@ function renderTable(logs: LogEntry[], loading: boolean, onApprove: (id: string,
                      {log.teacher_approved ? <CheckCircle2 size={14} strokeWidth={2.5} /> : null}
                      {log.teacher_approved ? "Approved" : "Pending"}
                    </button>
+                </TableCell>
+                <TableCell className="px-6 py-6 text-right">
+                  <div className="flex items-center justify-end gap-2">
+                    <button 
+                      onClick={() => onEdit(log)}
+                      className="p-2 text-slate-400 hover:text-brand-blue hover:bg-blue-50 rounded-lg transition-colors"
+                      title="Edit Log"
+                    >
+                      <Edit3 size={16} />
+                    </button>
+                    <button 
+                      onClick={() => onDelete(log.id)}
+                      className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Delete Log"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))

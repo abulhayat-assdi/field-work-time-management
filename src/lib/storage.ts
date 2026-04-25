@@ -77,6 +77,28 @@ export const getDailyLogs = async (startDate?: string, endDate?: string, batch?:
 };
 
 export const addLog = async (log: Omit<LogEntry, "id" | "created_at">) => {
+  // Check for existing logs with same date, roll_number and student_name
+  const { data: existingLogs, error: searchError } = await supabase
+    .from("fieldwork_logs")
+    .select("id")
+    .eq("date", log.date)
+    .eq("roll_number", log.roll_number)
+    .eq("student_name", log.student_name);
+
+  if (searchError) throw searchError;
+
+  if (existingLogs && existingLogs.length > 0) {
+    // Delete the old ones to prevent duplicates
+    const idsToDelete = existingLogs.map(e => e.id);
+    const { error: deleteError } = await supabase
+      .from("fieldwork_logs")
+      .delete()
+      .in("id", idsToDelete);
+      
+    if (deleteError) throw deleteError;
+  }
+
+  // Insert the new log
   const { data, error } = await supabase
     .from("fieldwork_logs")
     .insert([log])

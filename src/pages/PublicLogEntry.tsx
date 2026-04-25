@@ -12,6 +12,7 @@ import { motion } from "motion/react";
 import { ClipboardList, Send, MapPin } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Batch } from "@/lib/types";
+import { Logo } from "@/components/Logo";
 
 export default function PublicLogEntry() {
   const [loading, setLoading] = useState(false);
@@ -70,12 +71,7 @@ export default function PublicLogEntry() {
     <div className="min-h-screen bg-slate-50 flex flex-col items-center p-4 md:p-8">
       <div className="w-full max-w-2xl">
         <div className="flex justify-between items-center mb-8">
-          <div className="flex items-center gap-2">
-             <div className="w-10 h-10 bg-brand-blue rounded-xl flex items-center justify-center text-white">
-                <MapPin size={24} />
-             </div>
-             <h1 className="text-xl font-bold text-brand-slate-main">Student Portal</h1>
-          </div>
+          <Logo />
           <Link to="/login">
             <Button variant="ghost" className="text-xs text-brand-slate-sub font-semibold">Teacher Login</Button>
           </Link>
@@ -87,8 +83,8 @@ export default function PublicLogEntry() {
         >
           <Card className="border-brand-border shadow-sm rounded-2xl">
             <CardHeader className="text-center border-b border-brand-border bg-white rounded-t-2xl px-6 py-8">
-              <ClipboardList className="mx-auto text-brand-blue mb-2" size={32} />
-              <CardTitle className="text-2xl font-bold">Daily Fieldwork Log</CardTitle>
+              <ClipboardList className="mx-auto text-brand-blue mb-3" size={36} />
+              <CardTitle className="text-2xl font-bold">The Art of Sales & Marketing</CardTitle>
               <CardDescription>Submit your fieldwork activity details below.</CardDescription>
             </CardHeader>
             <CardContent className="p-8">
