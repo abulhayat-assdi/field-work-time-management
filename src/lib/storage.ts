@@ -1,127 +1,148 @@
-import { supabase } from "./supabase";
+import { collection, doc, getDocs, getDoc, setDoc, addDoc, updateDoc, deleteDoc, query, where, orderBy, writeBatch } from "firebase/firestore";
+import { db } from "./firebase";
 import { LogEntry, Batch } from "./types";
 
 export const getBatches = async (): Promise<Batch[]> => {
-  const { data, error } = await supabase.from("batches").select("*").order("name", { ascending: true });
-  if (error) {
+  try {
+    const q = query(collection(db, "batches"), orderBy("name", "asc"));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Batch));
+  } catch (error) {
     console.error("Error fetching batches:", error);
     return [];
   }
-  return data || [];
 };
 
 export const addBatch = async (name: string) => {
-  const { data, error } = await supabase.from("batches").insert([{ name }]).select();
-  if (error) throw error;
-  return data?.[0];
+  try {
+    const docRef = await addDoc(collection(db, "batches"), { name, created_at: new Date().toISOString() });
+    return { id: docRef.id, name, created_at: new Date().toISOString() };
+  } catch (error) {
+    console.error("Error adding batch:", error);
+    throw error;
+  }
 };
 
 export const getExportLogs = async (startDate: string, endDate: string, batch: string): Promise<LogEntry[]> => {
-  let query = supabase.from("fieldwork_logs").select("*").gte("date", startDate).lte("date", endDate);
-  if (batch && batch !== "all") {
-    query = query.eq("batch", batch);
-  }
-  const { data, error } = await query.order("date", { ascending: true });
-  if (error) {
+  try {
+    const q = query(collection(db, "fieldwork_logs"));
+    const snapshot = await getDocs(q);
+    let logs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LogEntry));
+
+    logs = logs.filter(log => log.date >= startDate && log.date <= endDate);
+    if (batch && batch !== "all") {
+      logs = logs.filter(log => log.batch === batch);
+    }
+
+    logs.sort((a, b) => (a.date > b.date ? 1 : -1));
+    return logs;
+  } catch (error) {
     console.error("Error fetching export logs:", error);
     return [];
   }
-  return data || [];
 };
 
 export const getLogs = async (): Promise<LogEntry[]> => {
-  const { data, error } = await supabase
-    .from("fieldwork_logs")
-    .select("*")
-    .order("created_at", { ascending: false });
-
-  if (error) {
+  try {
+    const q = query(collection(db, "fieldwork_logs"), orderBy("created_at", "desc"));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LogEntry));
+  } catch (error) {
     console.error("Error fetching logs:", error);
     return [];
   }
-  return data || [];
 };
 
 export const getStudentLogs = async (rollNumber: string): Promise<LogEntry[]> => {
-  const { data, error } = await supabase
-    .from("fieldwork_logs")
-    .select("*")
-    .eq("roll_number", rollNumber)
-    .order("date", { ascending: false });
-
-  if (error) {
+  try {
+    const q = query(collection(db, "fieldwork_logs"), where("roll_number", "==", rollNumber));
+    const snapshot = await getDocs(q);
+    let logs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LogEntry));
+    logs.sort((a, b) => (a.date > b.date ? -1 : 1));
+    return logs;
+  } catch (error) {
     console.error("Error fetching student logs:", error);
     return [];
   }
-  return data || [];
 };
 
 export const getDailyLogs = async (startDate?: string, endDate?: string, batch?: string): Promise<LogEntry[]> => {
-  let query = supabase.from("fieldwork_logs").select("*");
-  if (startDate) {
-    query = query.gte("date", startDate);
-  }
-  if (endDate) {
-    query = query.lte("date", endDate);
-  }
-  if (batch && batch !== "all") {
-    query = query.eq("batch", batch);
-  }
-  const { data, error } = await query.order("date", { ascending: false }).order("created_at", { ascending: false });
+  try {
+    const q = query(collection(db, "fieldwork_logs"));
+    const snapshot = await getDocs(q);
+    let logs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LogEntry));
 
-  if (error) {
+    if (startDate) {
+      logs = logs.filter(log => log.date >= startDate);
+    }
+    if (endDate) {
+      logs = logs.filter(log => log.date <= endDate);
+    }
+    if (batch && batch !== "all") {
+      logs = logs.filter(log => log.batch === batch);
+    }
+
+    logs.sort((a, b) => {
+      if (a.date !== b.date) {
+        return a.date > b.date ? -1 : 1;
+      }
+      return (a.created_at || "") > (b.created_at || "") ? -1 : 1;
+    });
+
+    return logs;
+  } catch (error) {
     console.error("Error fetching daily logs:", error);
     return [];
   }
-  return data || [];
 };
 
 export const addLog = async (log: Omit<LogEntry, "id" | "created_at">) => {
-  // Check for existing logs with same date, roll_number and student_name
-  const { data: existingLogs, error: searchError } = await supabase
-    .from("fieldwork_logs")
-    .select("id")
-    .eq("date", log.date)
-    .eq("roll_number", log.roll_number)
-    .eq("student_name", log.student_name);
+  try {
+    const q = query(
+      collection(db, "fieldwork_logs"), 
+      where("date", "==", log.date),
+      where("roll_number", "==", log.roll_number),
+      where("student_name", "==", log.student_name)
+    );
+    const searchSnapshot = await getDocs(q);
 
-  if (searchError) throw searchError;
+    if (!searchSnapshot.empty) {
+      const batchOp = writeBatch(db);
+      searchSnapshot.docs.forEach(doc => {
+        batchOp.delete(doc.ref);
+      });
+      await batchOp.commit();
+    }
 
-  if (existingLogs && existingLogs.length > 0) {
-    // Delete the old ones to prevent duplicates
-    const idsToDelete = existingLogs.map(e => e.id);
-    const { error: deleteError } = await supabase
-      .from("fieldwork_logs")
-      .delete()
-      .in("id", idsToDelete);
-      
-    if (deleteError) throw deleteError;
+    const docRef = await addDoc(collection(db, "fieldwork_logs"), {
+      ...log,
+      created_at: new Date().toISOString()
+    });
+    
+    const newDoc = await getDoc(docRef);
+    return { id: newDoc.id, ...newDoc.data() } as LogEntry;
+  } catch (error) {
+    console.error("Error adding log:", error);
+    throw error;
   }
-
-  // Insert the new log
-  const { data, error } = await supabase
-    .from("fieldwork_logs")
-    .insert([log])
-    .select();
-
-  if (error) throw error;
-  return data?.[0];
 };
 
 export const updateLog = async (id: string, updates: Partial<LogEntry>) => {
-  const { error } = await supabase
-    .from("fieldwork_logs")
-    .update(updates)
-    .eq("id", id);
-
-  if (error) throw error;
+  try {
+    const docRef = doc(db, "fieldwork_logs", id);
+    await updateDoc(docRef, updates);
+  } catch (error) {
+    console.error("Error updating log:", error);
+    throw error;
+  }
 };
 
 export const deleteLog = async (id: string) => {
-  const { error } = await supabase
-    .from("fieldwork_logs")
-    .delete()
-    .eq("id", id);
-
-  if (error) throw error;
+  try {
+    const docRef = doc(db, "fieldwork_logs", id);
+    await deleteDoc(docRef);
+  } catch (error) {
+    console.error("Error deleting log:", error);
+    throw error;
+  }
 };
