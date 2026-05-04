@@ -3,13 +3,13 @@ import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyD1Ph39I9XSfHGZM9PQIaN-D0EgCaAyuSA",
-  authDomain: "field-word-time-management.firebaseapp.com",
-  projectId: "field-word-time-management",
-  storageBucket: "field-word-time-management.firebasestorage.app",
-  messagingSenderId: "941799153877",
-  appId: "1:941799153877:web:c7d7f9b211548c8ee9425c",
-  measurementId: "G-67DBCYL1WX"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 export const app = initializeApp(firebaseConfig);
