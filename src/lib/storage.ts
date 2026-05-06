@@ -6,7 +6,7 @@ export const getBatches = async (): Promise<Batch[]> => {
   try {
     const q = query(collection(db, "batches"), orderBy("name", "asc"));
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Batch));
+    return snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) } as Batch));
   } catch (error) {
     console.error("Error fetching batches:", error);
     return [];
@@ -32,7 +32,7 @@ export const getStudents = async (batchName?: string): Promise<Student[]> => {
       q = query(collection(db, "students"));
     }
     const snapshot = await getDocs(q);
-    const students = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student));
+    const students = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) } as Student));
     
     // Sort in-memory to avoid composite index requirement
     return students.sort((a, b) => a.roll_number.localeCompare(b.roll_number, undefined, { numeric: true }));
@@ -79,7 +79,7 @@ export const getExportLogs = async (startDate: string, endDate: string, batch: s
   try {
     const q = query(collection(db, "fieldwork_logs"));
     const snapshot = await getDocs(q);
-    let logs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LogEntry));
+    let logs = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) } as LogEntry));
 
     logs = logs.filter(log => log.date >= startDate && log.date <= endDate);
     if (batch && batch !== "all") {
@@ -98,7 +98,7 @@ export const getLogs = async (): Promise<LogEntry[]> => {
   try {
     const q = query(collection(db, "fieldwork_logs"), orderBy("created_at", "desc"));
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LogEntry));
+    return snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) } as LogEntry));
   } catch (error) {
     console.error("Error fetching logs:", error);
     return [];
@@ -109,7 +109,7 @@ export const getStudentLogs = async (rollNumber: string): Promise<LogEntry[]> =>
   try {
     const q = query(collection(db, "fieldwork_logs"), where("roll_number", "==", rollNumber));
     const snapshot = await getDocs(q);
-    let logs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LogEntry));
+    let logs = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) } as LogEntry));
     logs.sort((a, b) => (a.date > b.date ? -1 : 1));
     return logs;
   } catch (error) {
@@ -122,7 +122,7 @@ export const getDailyLogs = async (startDate?: string, endDate?: string, batch?:
   try {
     const q = query(collection(db, "fieldwork_logs"));
     const snapshot = await getDocs(q);
-    let logs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LogEntry));
+    let logs = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) } as LogEntry));
 
     if (startDate) {
       logs = logs.filter(log => log.date >= startDate);
