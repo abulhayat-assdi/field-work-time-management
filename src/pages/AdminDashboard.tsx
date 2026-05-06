@@ -10,13 +10,14 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { getDailyLogs, getStudentLogs, updateLog, deleteLog, getBatches, addBatch, getExportLogs } from "@/lib/storage";
+import { getDailyLogs, getStudentLogs, updateLog, deleteLog, getBatches, addBatch, getExportLogs, getStudents, addStudent, deleteStudent } from "@/lib/storage";
 import { calculateTimeDifference, displayAsAMPM } from "@/lib/time-utils";
-import { LogEntry, Batch } from "@/lib/types";
+import { LogEntry, Batch, Student } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { motion } from "motion/react";
 import { Calendar as CalendarIcon, Download, Search, CheckCircle2, FileText, UserSquare2, Plus, CheckCheck, Edit3, Trash2 } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import { BatchManagerDialog } from "@/components/admin/BatchManagerDialog";
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("daily");
@@ -28,13 +29,16 @@ export default function AdminDashboard() {
   const [batches, setBatches] = useState<Batch[]>([]);
   const [selectedBatchFilter, setSelectedBatchFilter] = useState("all");
   
-  const [isBatchDialogOpen, setIsBatchDialogOpen] = useState(false);
-  const [newBatchName, setNewBatchName] = useState("");
+  const [isBatchManagerOpen, setIsBatchManagerOpen] = useState(false);
   
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [exportStartDate, setExportStartDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [exportEndDate, setExportEndDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [exportBatch, setExportBatch] = useState("all");
+
+  const [isStudentDialogOpen, setIsStudentDialogOpen] = useState(false);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [newStudent, setNewStudent] = useState({ name: "", roll_number: "", batch: "" });
 
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editLogData, setEditLogData] = useState<LogEntry | null>(null);
@@ -49,19 +53,25 @@ export default function AdminDashboard() {
         const data = await getStudentLogs(searchRoll);
         setLogs(data);
       }
-    } catch (err) {
-      toast.error("Failed to sync records.");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to sync records.");
     } finally {
       setLoading(false);
     }
   };
 
+  const fetchBatchesData = async () => {
+    const data = await getBatches();
+    setBatches(data);
+  };
+
   useEffect(() => {
-    const fetchBatchesData = async () => {
-      const data = await getBatches();
-      setBatches(data);
+    const fetchStudentsData = async () => {
+      const data = await getStudents();
+      setStudents(data);
     };
     fetchBatchesData();
+    fetchStudentsData();
   }, []);
 
   useEffect(() => {
@@ -73,8 +83,8 @@ export default function AdminDashboard() {
       await updateLog(id, { teacher_approved: !current });
       toast.success(`Entry ${current ? 'un-approved' : 'approved'} successfully.`);
       fetchLogs();
-    } catch (err) {
-      toast.error("Operation failed.");
+    } catch (err: any) {
+      toast.error(err.message || "Operation failed.");
     }
   };
 
@@ -90,8 +100,8 @@ export default function AdminDashboard() {
       await Promise.all(unapprovedLogs.map(log => updateLog(log.id, { teacher_approved: true })));
       toast.success(`${unapprovedLogs.length} logs approved successfully!`);
       fetchLogs();
-    } catch (err) {
-      toast.error("Failed to bulk approve.");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to bulk approve.");
       setLoading(false);
     }
   };
@@ -102,8 +112,8 @@ export default function AdminDashboard() {
       await deleteLog(id);
       toast.success("Log deleted successfully!");
       fetchLogs();
-    } catch (err) {
-      toast.error("Failed to delete log.");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete log.");
     }
   };
 
@@ -115,23 +125,39 @@ export default function AdminDashboard() {
       toast.success("Log updated successfully!");
       setIsEditDialogOpen(false);
       fetchLogs();
-    } catch (err) {
-      toast.error("Failed to update log.");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update log.");
     }
   };
 
-  const handleAddBatch = async (e: React.FormEvent) => {
+
+
+  const handleAddStudent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newBatchName.trim()) return;
+    if (!newStudent.name || !newStudent.roll_number || !newStudent.batch) {
+      toast.error("Please fill all fields.");
+      return;
+    }
     try {
-      await addBatch(newBatchName.trim());
-      toast.success("Batch added successfully!");
-      setNewBatchName("");
-      setIsBatchDialogOpen(false);
-      const data = await getBatches();
-      setBatches(data);
-    } catch (err) {
-      toast.error("Failed to add batch.");
+      await addStudent(newStudent);
+      toast.success("Student added successfully!");
+      setNewStudent({ name: "", roll_number: "", batch: "" });
+      const data = await getStudents();
+      setStudents(data);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to add student.");
+    }
+  };
+
+  const handleDeleteStudent = async (id: string) => {
+    if (!window.confirm("Delete this student?")) return;
+    try {
+      await deleteStudent(id);
+      toast.success("Student deleted successfully!");
+      const data = await getStudents();
+      setStudents(data);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete student.");
     }
   };
 
@@ -166,8 +192,8 @@ export default function AdminDashboard() {
       link.click();
       document.body.removeChild(link);
       setIsExportDialogOpen(false);
-    } catch (error) {
-      toast.error("Failed to export data.");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to export data.");
     }
   };
 
@@ -196,11 +222,18 @@ export default function AdminDashboard() {
             Approve All
           </Button>
           <Button 
-            onClick={() => setIsBatchDialogOpen(true)} 
+            onClick={() => setIsBatchManagerOpen(true)} 
             className="h-12 px-6 rounded-xl bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-bold gap-2 shadow-sm transition-all"
           >
             <Plus size={16} />
             Manage Batch
+          </Button>
+          <Button 
+            onClick={() => setIsStudentDialogOpen(true)} 
+            className="h-12 px-6 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold gap-2 shadow-sm transition-all"
+          >
+            <UserSquare2 size={16} />
+            Manage Students
           </Button>
           <Button 
             onClick={() => setIsExportDialogOpen(true)} 
@@ -324,22 +357,87 @@ export default function AdminDashboard() {
         </motion.div>
       </Tabs>
 
-      <Dialog open={isBatchDialogOpen} onOpenChange={setIsBatchDialogOpen}>
-        <DialogContent className="sm:max-w-md rounded-2xl">
+      <BatchManagerDialog 
+        open={isBatchManagerOpen} 
+        onOpenChange={setIsBatchManagerOpen} 
+        onBatchesUpdated={fetchBatchesData}
+      />
+
+      <Dialog open={isStudentDialogOpen} onOpenChange={setIsStudentDialogOpen}>
+        <DialogContent className="sm:max-w-2xl rounded-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold">Manage Batches</DialogTitle>
-            <DialogDescription>Create a new batch (e.g., Batch_09) to categorize students.</DialogDescription>
+            <DialogTitle className="text-xl font-bold">Manage Students</DialogTitle>
+            <DialogDescription>Add or remove students from the system.</DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleAddBatch} className="space-y-6 mt-4">
-            <div className="space-y-2">
-              <Label>Batch Name</Label>
-              <Input placeholder="e.g. Batch_09" value={newBatchName} onChange={(e) => setNewBatchName(e.target.value)} required className="h-11 rounded-xl" />
+          
+          <form onSubmit={handleAddStudent} className="space-y-4 mt-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
+            <h4 className="font-bold text-sm text-slate-700 uppercase tracking-wider">Add New Student</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-1">
+                <Label className="text-xs">Full Name</Label>
+                <Input placeholder="Student Name" value={newStudent.name} onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })} required className="h-10 rounded-lg" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Roll Number</Label>
+                <Input placeholder="Roll No" value={newStudent.roll_number} onChange={(e) => setNewStudent({ ...newStudent, roll_number: e.target.value })} required className="h-10 rounded-lg" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Batch</Label>
+                <Select value={newStudent.batch} onValueChange={(val) => setNewStudent({ ...newStudent, batch: val })}>
+                  <SelectTrigger className="h-10 rounded-lg">
+                    <SelectValue placeholder="Select Batch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {batches.map(b => (
+                      <SelectItem key={b.id} value={b.name}>{b.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <DialogFooter>
-              <Button type="button" variant="ghost" onClick={() => setIsBatchDialogOpen(false)}>Cancel</Button>
-              <Button type="submit" className="bg-brand-blue hover:bg-blue-700 rounded-xl px-6">Add Batch</Button>
-            </DialogFooter>
+            <Button type="submit" className="w-full bg-brand-blue hover:bg-blue-700 rounded-lg h-10 font-bold">
+              <Plus size={16} className="mr-2" /> Add Student
+            </Button>
           </form>
+
+          <div className="mt-8">
+            <h4 className="font-bold text-sm text-slate-700 mb-4 uppercase tracking-wider">Student List ({students.length})</h4>
+            <div className="border rounded-xl overflow-hidden">
+              <Table>
+                <TableHeader className="bg-slate-50">
+                  <TableRow>
+                    <TableHead className="font-bold text-xs">Roll No</TableHead>
+                    <TableHead className="font-bold text-xs">Name</TableHead>
+                    <TableHead className="font-bold text-xs">Batch</TableHead>
+                    <TableHead className="text-right font-bold text-xs">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {students.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-8 text-slate-400 font-medium">No students added yet.</TableCell>
+                    </TableRow>
+                  ) : (
+                    students.map((s) => (
+                      <TableRow key={s.id}>
+                        <TableCell className="font-bold text-xs">{s.roll_number}</TableCell>
+                        <TableCell className="text-xs">{s.name}</TableCell>
+                        <TableCell className="text-xs font-medium text-indigo-600">{s.batch}</TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="icon" onClick={() => handleDeleteStudent(s.id)} className="text-red-400 hover:text-red-600 hover:bg-red-50 h-8 w-8">
+                            <Trash2 size={14} />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+          <DialogFooter className="mt-6">
+            <Button type="button" variant="outline" onClick={() => setIsStudentDialogOpen(false)} className="rounded-xl px-8">Close</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

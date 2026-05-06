@@ -6,17 +6,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { addLog, getBatches } from "@/lib/storage";
+import { addLog, getBatches, getStudents } from "@/lib/storage";
 import { formatTo12Hour } from "@/lib/time-utils";
 import { motion } from "motion/react";
 import { ClipboardList, Send, MapPin } from "lucide-react";
 import { Link } from "react-router-dom";
-import { Batch } from "@/lib/types";
+import { Batch, Student } from "@/lib/types";
 import { Logo } from "@/components/Logo";
 
 export default function PublicLogEntry() {
   const [loading, setLoading] = useState(false);
   const [batches, setBatches] = useState<Batch[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
   const [formData, setFormData] = useState({
     date: format(new Date(), "yyyy-MM-dd"),
     student_name: "",
@@ -35,6 +36,27 @@ export default function PublicLogEntry() {
     };
     fetchBatches();
   }, []);
+
+  useEffect(() => {
+    const fetchStudents = async () => {
+      if (formData.batch) {
+        const data = await getStudents(formData.batch);
+        setStudents(data);
+      } else {
+        setStudents([]);
+      }
+    };
+    fetchStudents();
+  }, [formData.batch]);
+
+  const handleRollChange = (roll: string) => {
+    const student = students.find(s => s.roll_number === roll);
+    if (student) {
+      setFormData({ ...formData, roll_number: roll, student_name: student.name });
+    } else {
+      setFormData({ ...formData, roll_number: roll });
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,31 +124,6 @@ export default function PublicLogEntry() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="roll_number">Roll Number / Student ID</Label>
-                    <Input
-                      id="roll_number"
-                      placeholder="e.g. S12345"
-                      value={formData.roll_number}
-                      onChange={(e) => setFormData({ ...formData, roll_number: e.target.value })}
-                      className="border-brand-border h-11"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="student_name">Full Name</Label>
-                    <Input
-                      id="student_name"
-                      placeholder="Enter your registered name"
-                      value={formData.student_name}
-                      onChange={(e) => setFormData({ ...formData, student_name: e.target.value })}
-                      className="border-brand-border h-11"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
                     <Label>Batch</Label>
                     <Select
                       value={formData.batch}
@@ -146,6 +143,42 @@ export default function PublicLogEntry() {
                         )}
                       </SelectContent>
                     </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="roll_number">Roll Number / Student ID</Label>
+                    <Select
+                      value={formData.roll_number}
+                      onValueChange={handleRollChange}
+                      disabled={!formData.batch}
+                      required
+                    >
+                      <SelectTrigger className="h-11 border-brand-border">
+                        <SelectValue placeholder={formData.batch ? "Select your roll number" : "Select batch first"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {students.length === 0 ? (
+                          <SelectItem value="none" disabled>No students found for this batch</SelectItem>
+                        ) : (
+                          students.map((student) => (
+                            <SelectItem key={student.id} value={student.roll_number}>{student.roll_number}</SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="student_name">Full Name</Label>
+                    <Input
+                      id="student_name"
+                      placeholder="Your name will auto-fill"
+                      value={formData.student_name}
+                      readOnly
+                      className="border-brand-border h-11 bg-slate-50 cursor-not-allowed font-semibold text-brand-blue"
+                      required
+                    />
                   </div>
                 </div>
 

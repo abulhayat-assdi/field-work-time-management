@@ -18,6 +18,14 @@ export interface Batch {
   created_at: string;
 }
 
+export interface Student {
+  id: string;
+  name: string;
+  roll_number: string;
+  batch: string;
+  created_at: string;
+}
+
 export interface DashboardStats {
   totalEntriesToday: number;
   pendingApprovals: number;
