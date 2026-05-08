@@ -1,0 +1,23 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "fieldwork_logs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "date",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "roll_number",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "student_name",
+          "order": "ASCENDING"
+        }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
