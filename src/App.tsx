@@ -6,6 +6,7 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import Dashboard from "./pages/AdminDashboard";
 import PublicLogEntry from "./pages/PublicLogEntry";
 import Login from "./pages/Login";
@@ -22,7 +23,7 @@ export default function App() {
         </Routes>
       </ThemeProvider>
       <Toaster />
+      <SpeedInsights />
     </Router>
   );
 }
-
